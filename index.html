@@ -3,92 +3,103 @@
 <head>
   <meta charset="utf-8" />
   <title>Mapa Turístico</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <!-- Leaflet CSS -->
+  <!-- Leaflet -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
   />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
-    html, body {
+    html, body, #map {
       height: 100%;
       margin: 0;
-    }
-    #map {
-      width: 100%;
-      height: 100%;
+      padding: 0;
     }
   </style>
 </head>
 
 <body>
+  <div id="map"></div>
 
-<div id="map"></div>
+  <script>
+    // Crear mapa
+    var map = L.map('map').setView([0, 0], 2);
 
-<!-- Leaflet JS -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    // Capa base
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19
+    }).addTo(map);
 
-<script>
-  // Crear mapa
-  var map = L.map('map').setView([-18.4783, -70.3211], 13);
+    // Variables globales
+    var markers = [];
+    var routeLine = null;
+    var myMarker = null;
 
-  // Capa OpenStreetMap
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19
-  }).addTo(map);
+    // Al tocar el mapa → enviar punto a App Inventor
+    map.on('click', function(e) {
+      var msg = "POINT:" + e.latlng.lat + ":" + e.latlng.lng;
+      if (window.AppInventor) {
+        window.AppInventor.setWebViewString(msg);
+      }
+    });
 
-  // Variables globales JS
-  var routeLine = null;
-  var markers = [];
-
-  // Evento clic en el mapa
-  map.on('click', function(e) {
-    var lat = e.latlng.lat;
-    var lon = e.latlng.lng;
-
-    // Enviar datos a App Inventor
-    window.AppInventor.setWebViewString(
-      "POINT:" + lat + ":" + lon
-    );
-  });
-
-  // Agregar marcador
-  function addMarker(lat, lon) {
-    var marker = L.marker([lat, lon]).addTo(map);
-    markers.push(marker);
-  }
-
-  // Dibujar ruta
-  function drawRoute(latitudes, longitudes) {
-    var points = [];
-
-    for (var i = 0; i < latitudes.length; i++) {
-      points.push([latitudes[i], longitudes[i]]);
+    // Agregar marcador de destino
+    function addMarker(lat, lon) {
+      var marker = L.marker([lat, lon]).addTo(map);
+      markers.push(marker);
     }
 
-    if (routeLine !== null) {
-      map.removeLayer(routeLine);
+    // Dibujar ruta
+    function drawRoute(latitudes, longitudes) {
+      if (routeLine !== null) {
+        map.removeLayer(routeLine);
+      }
+
+      var points = [];
+      for (var i = 0; i < latitudes.length; i++) {
+        points.push([latitudes[i], longitudes[i]]);
+      }
+
+      routeLine = L.polyline(points, {
+        color: 'red',
+        weight: 4
+      }).addTo(map);
     }
 
-    routeLine = L.polyline(points, { weight: 4 }).addTo(map);
-    map.fitBounds(routeLine.getBounds());
-  }
+    // Mostrar ubicación actual (punto azul)
+    function addMyLocation(lat, lon) {
+      if (myMarker !== null) {
+        map.removeLayer(myMarker);
+      }
 
-  // Limpiar mapa (opcional)
-  function clearMap() {
-    if (routeLine !== null) {
-      map.removeLayer(routeLine);
-      routeLine = null;
+      myMarker = L.circleMarker([lat, lon], {
+        radius: 8,
+        color: 'blue',
+        fillColor: '#2196F3',
+        fillOpacity: 0.9
+      }).addTo(map);
     }
 
-    for (var i = 0; i < markers.length; i++) {
-      map.removeLayer(markers[i]);
+    // Centrar el mapa en la ubicación actual
+    function centerMap(lat, lon) {
+      map.setView([lat, lon], 15);
     }
 
-    markers = [];
-  }
-</script>
+    // Limpiar mapa (opcional)
+    function clearMap() {
+      markers.forEach(function(m) {
+        map.removeLayer(m);
+      });
+      markers = [];
 
+      if (routeLine !== null) {
+        map.removeLayer(routeLine);
+        routeLine = null;
+      }
+    }
+  </script>
 </body>
 </html>
