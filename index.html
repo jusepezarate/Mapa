@@ -25,34 +25,48 @@
   <div id="map"></div>
 
   <script>
-    // Crear mapa
+    /* ===============================
+       CREAR MAPA
+    =============================== */
     var map = L.map('map').setView([0, 0], 2);
 
-    // Capa base
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19
     }).addTo(map);
 
-    // Variables globales
+    /* ===============================
+       VARIABLES GLOBALES
+    =============================== */
     var markers = [];
     var routeLine = null;
     var myMarker = null;
 
-    // Al tocar el mapa → enviar punto a App Inventor
+    /* ===============================
+       CLICK EN MAPA → APP INVENTOR
+       (PARTE CRÍTICA CORREGIDA)
+    =============================== */
     map.on('click', function(e) {
       var msg = "POINT:" + e.latlng.lat + ":" + e.latlng.lng;
-      if (window.AppInventor) {
+
+      if (typeof window.AppInventor !== "undefined") {
         window.AppInventor.setWebViewString(msg);
+      } else {
+        document.location =
+          "appinventor://setWebViewString?value=" + msg;
       }
     });
 
-    // Agregar marcador de destino
+    /* ===============================
+       AGREGAR MARCADOR DESTINO
+    =============================== */
     function addMarker(lat, lon) {
       var marker = L.marker([lat, lon]).addTo(map);
       markers.push(marker);
     }
 
-    // Dibujar ruta
+    /* ===============================
+       DIBUJAR RUTA
+    =============================== */
     function drawRoute(latitudes, longitudes) {
       if (routeLine !== null) {
         map.removeLayer(routeLine);
@@ -69,7 +83,9 @@
       }).addTo(map);
     }
 
-    // Mostrar ubicación actual (punto azul)
+    /* ===============================
+       UBICACIÓN ACTUAL (PUNTO AZUL)
+    =============================== */
     function addMyLocation(lat, lon) {
       if (myMarker !== null) {
         map.removeLayer(myMarker);
@@ -83,12 +99,16 @@
       }).addTo(map);
     }
 
-    // Centrar el mapa en la ubicación actual
+    /* ===============================
+       CENTRAR MAPA
+    =============================== */
     function centerMap(lat, lon) {
       map.setView([lat, lon], 15);
     }
 
-    // Limpiar mapa (opcional)
+    /* ===============================
+       LIMPIAR MAPA (OPCIONAL)
+    =============================== */
     function clearMap() {
       markers.forEach(function(m) {
         map.removeLayer(m);
