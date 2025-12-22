@@ -52,7 +52,36 @@ let markers = [];
 let routeLine = null;
 
 /* =========================
-   MAP CLICK
+   GEOLOCATION (CURRENT POSITION)
+========================= */
+if ("geolocation" in navigator) {
+  navigator.geolocation.getCurrentPosition(
+    position => {
+      const lat = position.coords.latitude;
+      const lon = position.coords.longitude;
+
+      L.circleMarker([lat, lon], {
+        radius: 7,
+        color: "blue",
+        fillColor: "blue",
+        fillOpacity: 1
+      }).addTo(map);
+
+      map.setView([lat, lon], 15);
+    },
+    error => {
+      console.warn("Geolocation error:", error.message);
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0
+    }
+  );
+}
+
+/* =========================
+   MAP CLICK → ADD POINT
 ========================= */
 map.on('click', e => {
   addPoint(e.latlng.lat, e.latlng.lng);
