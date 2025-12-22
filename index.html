@@ -33,7 +33,7 @@ let linea = null;
 navigator.geolocation.getCurrentPosition(pos => {
   let lat = pos.coords.latitude;
   let lng = pos.coords.longitude;
-  L.circleMarker([lat, lng], {radius:6,color:'blue'}).addTo(map);
+  L.circleMarker([lat, lng], { radius: 6, color: 'blue' }).addTo(map);
   map.setView([lat, lng], 15);
 });
 
@@ -43,7 +43,7 @@ map.on('click', e => {
   puntos.push([e.latlng.lng, e.latlng.lat]);
 });
 
-/* 🔙 Deshacer */
+/* 🔙 Deshacer último punto */
 function undoLastPoint() {
   if (marcadores.length > 0) {
     map.removeLayer(marcadores.pop());
@@ -51,7 +51,7 @@ function undoLastPoint() {
   }
 }
 
-/* 🧹 Limpiar */
+/* 🧹 Limpiar todo */
 function clearAll() {
   marcadores.forEach(m => map.removeLayer(m));
   marcadores = [];
@@ -87,7 +87,7 @@ async function calculateRoute() {
     style: { color: "red", weight: 5 }
   }).addTo(map);
 
-  /* 📤 Enviar a App Inventor */
+  /* 📤 Enviar a App Inventor (lat,lng|lat,lng) */
   let texto = "";
   data.features[0].geometry.coordinates.forEach(p => {
     texto += p[1] + "," + p[0] + "|";
@@ -99,10 +99,39 @@ async function calculateRoute() {
   }
 }
 
-/* 🎯 Exponer funciones */
+/* ================================================= */
+/* ✅ DIBUJAR RUTA GUARDADA DESDE APP INVENTOR        */
+/* ================================================= */
+
+function dibujarRuta(textoRuta) {
+
+  if (!textoRuta || textoRuta.length === 0) return;
+
+  // borrar ruta anterior
+  if (linea) {
+    map.removeLayer(linea);
+  }
+
+  // convertir "lat,lng|lat,lng" → [[lat,lng],[lat,lng]]
+  let coords = textoRuta.split("|").map(p => {
+    let partes = p.split(",");
+    return [parseFloat(partes[0]), parseFloat(partes[1])];
+  });
+
+  linea = L.polyline(coords, {
+    color: "blue",
+    weight: 5
+  }).addTo(map);
+
+  map.fitBounds(linea.getBounds());
+}
+
+/* 🎯 Exponer funciones a App Inventor */
 window.calculateRoute = calculateRoute;
 window.undoLastPoint = undoLastPoint;
 window.clearAll = clearAll;
+window.dibujarRuta = dibujarRuta;
+
 </script>
 </body>
 </html>
