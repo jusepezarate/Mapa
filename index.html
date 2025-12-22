@@ -2,7 +2,8 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Mapa Turístico</title>
+  <title>Tourist Route Planner</title>
+
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <!-- Leaflet -->
@@ -13,10 +14,13 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
-    html, body, #map {
+    html, body {
       height: 100%;
       margin: 0;
-      padding: 0;
+    }
+    #map {
+      width: 100%;
+      height: 100%;
     }
   </style>
 </head>
@@ -24,102 +28,147 @@
 <body>
   <div id="map"></div>
 
-  <script>
-    /* ===============================
-       CREAR MAPA
-    =============================== */
-    var map = L.map('map').setView([0, 0], 2);
+<script>
+/* =========================
+   CONFIG
+========================= */
+const ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjZhMTUxMmFkOTcxNjQzYTFhYzg1NDkwODBjYTk5ZmZiIiwiaCI6Im11cm11cjY0In0=";
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19
+/* =========================
+   MAP INIT
+========================= */
+const map = L.map('map').setView([-18.4783, -70.3126], 14); // Arica
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+/* =========================
+   GLOBAL STATE
+========================= */
+let points = [];
+let markers = [];
+let routeLine = null;
+
+/* =========================
+   GEOLOCATION
+========================= */
+if (navigator.geolocation) {
+  navigator.geolocation.getCurrentPosition(pos => {
+    const lat = pos.coords.latitude;
+    const lon = pos.coords.longitude;
+
+    map.setView([lat, lon], 15);
+
+    L.circleMarker([lat, lon], {
+      radius: 6,
+      color: 'blue',
+      fillColor: 'blue',
+      fillOpacity: 1
     }).addTo(map);
 
-    /* ===============================
-       VARIABLES GLOBALES
-    =============================== */
-    var markers = [];
-    var routeLine = null;
-    var myMarker = null;
+  });
+}
 
-    /* ===============================
-       CLICK EN MAPA → APP INVENTOR
-       (PARTE CRÍTICA CORREGIDA)
-    =============================== */
-    map.on('click', function(e) {
-      var msg = "POINT:" + e.latlng.lat + ":" + e.latlng.lng;
+/* =========================
+   MAP CLICK → ADD POINT
+========================= */
+map.on('click', function(e) {
+  const lat = e.latlng.lat;
+  const lon = e.latlng.lng;
 
-      if (typeof window.AppInventor !== "undefined") {
-        window.AppInventor.setWebViewString(msg);
-      } else {
-        document.location =
-          "appinventor://setWebViewString?value=" + msg;
-      }
-    });
+  addPoint(lat, lon);
 
-    /* ===============================
-       AGREGAR MARCADOR DESTINO
-    =============================== */
-    function addMarker(lat, lon) {
-      var marker = L.marker([lat, lon]).addTo(map);
-      markers.push(marker);
+  if (window.AppInventor) {
+    window.AppInventor.setWebViewString(
+      "POINT:" + lat + "," + lon
+    );
+  }
+});
+
+/* =========================
+   FUNCTIONS
+========================= */
+function addPoint(lat, lon) {
+  const marker = L.marker([lat, lon]).addTo(map);
+  markers.push(marker);
+  points.push([lon, lat]); // ORS uses [lon, lat]
+}
+
+function clearLastPoint() {
+  if (markers.length > 0) {
+    map.removeLayer(markers.pop());
+    points.pop();
+  }
+}
+
+function clearAllPoints() {
+  markers.forEach(m => map.removeLayer(m));
+  markers = [];
+  points = [];
+
+  if (routeLine) {
+    map.removeLayer(routeLine);
+    routeLine = null;
+  }
+}
+
+async function calculateRoute() {
+  if (points.length < 2) {
+    alert("Add at least 2 points");
+    return;
+  }
+
+  if (routeLine) {
+    map.removeLayer(routeLine);
+  }
+
+  const body = {
+    coordinates: points,
+    optimize_waypoints: true
+  };
+
+  const response = await fetch(
+    "https://api.openrouteservice.org/v2/directions/foot-walking/geojson",
+    {
+      method: "POST",
+      headers: {
+        "Authorization": ORS_API_KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
     }
+  );
 
-    /* ===============================
-       DIBUJAR RUTA
-    =============================== */
-    function drawRoute(latitudes, longitudes) {
-      if (routeLine !== null) {
-        map.removeLayer(routeLine);
-      }
+  const data = await response.json();
 
-      var points = [];
-      for (var i = 0; i < latitudes.length; i++) {
-        points.push([latitudes[i], longitudes[i]]);
-      }
-
-      routeLine = L.polyline(points, {
-        color: 'red',
-        weight: 4
-      }).addTo(map);
+  routeLine = L.geoJSON(data, {
+    style: {
+      color: "red",
+      weight: 5
     }
+  }).addTo(map);
 
-    /* ===============================
-       UBICACIÓN ACTUAL (PUNTO AZUL)
-    =============================== */
-    function addMyLocation(lat, lon) {
-      if (myMarker !== null) {
-        map.removeLayer(myMarker);
-      }
+  // Send route to App Inventor
+  let routeString = "ROUTE:";
+  data.features[0].geometry.coordinates.forEach(c => {
+    routeString += c[1] + "," + c[0] + "|";
+  });
 
-      myMarker = L.circleMarker([lat, lon], {
-        radius: 8,
-        color: 'blue',
-        fillColor: '#2196F3',
-        fillOpacity: 0.9
-      }).addTo(map);
-    }
+  routeString = routeString.slice(0, -1);
 
-    /* ===============================
-       CENTRAR MAPA
-    =============================== */
-    function centerMap(lat, lon) {
-      map.setView([lat, lon], 15);
-    }
+  if (window.AppInventor) {
+    window.AppInventor.setWebViewString(routeString);
+  }
+}
 
-    /* ===============================
-       LIMPIAR MAPA (OPCIONAL)
-    =============================== */
-    function clearMap() {
-      markers.forEach(function(m) {
-        map.removeLayer(m);
-      });
-      markers = [];
+/* =========================
+   EXPOSE FUNCTIONS TO APP INVENTOR
+========================= */
+window.clearLastPoint = clearLastPoint;
+window.clearAllPoints = clearAllPoints;
+window.calculateRoute = calculateRoute;
 
-      if (routeLine !== null) {
-        map.removeLayer(routeLine);
-        routeLine = null;
-      }
-    }
-  </script>
+</script>
 </body>
 </html>
