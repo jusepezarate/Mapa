@@ -1,87 +1,104 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8">
-  <title>Mapa ORS</title>
+  <meta charset="utf-8" />
+  <title>Rutas Turísticas</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <!-- Leaflet -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
-    html, body { height:100%; margin:0; }
-    #map { width:100%; height:100%; }
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
+    #map {
+      width: 100%;
+      height: 100%;
+    }
   </style>
 </head>
 
 <body>
-<div id="map"></div>
+  <div id="map"></div>
 
 <script>
-/* ================= CONFIG ================= */
+/* =========================
+   CONFIG
+========================= */
 const ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjZhMTUxMmFkOTcxNjQzYTFhYzg1NDkwODBjYTk5ZmZiIiwiaCI6Im11cm11cjY0In0=";
 
-/* ================= MAP ================= */
-const map = L.map('map').setView([-18.4783, -70.3126], 14);
+/* =========================
+   MAP INIT
+========================= */
+const map = L.map('map').setView([-18.4783, -70.3126], 14); // Arica
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-  attribution:'© OpenStreetMap'
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 
-/* ================= STATE ================= */
+/* =========================
+   GLOBAL STATE
+========================= */
 let points = [];
 let markers = [];
 let routeLine = null;
 
-/* ================= GEOLOCATION ================= */
+/* =========================
+   GEOLOCATION
+========================= */
 if (navigator.geolocation) {
   navigator.geolocation.getCurrentPosition(pos => {
     const lat = pos.coords.latitude;
     const lon = pos.coords.longitude;
-    map.setView([lat, lon], 15);
 
     L.circleMarker([lat, lon], {
-      radius:6,
-      color:'blue',
-      fillColor:'blue',
-      fillOpacity:1
+      radius: 6,
+      color: 'blue',
+      fillColor: 'blue',
+      fillOpacity: 1
     }).addTo(map);
+
+    map.setView([lat, lon], 15);
   });
 }
 
-/* ================= CLICK ================= */
-map.on('click', e => {
+/* =========================
+   MAP CLICK → ADD POINT
+========================= */
+map.on('click', function(e) {
   addPoint(e.latlng.lat, e.latlng.lng);
 });
 
-/* ================= FUNCTIONS ================= */
+/* =========================
+   FUNCTIONS
+========================= */
 function addPoint(lat, lon) {
-  markers.push(L.marker([lat, lon]).addTo(map));
-  points.push([lon, lat]); // ORS order
+  const marker = L.marker([lat, lon]).addTo(map);
+  markers.push(marker);
+  points.push([lon, lat]); // ORS usa [lon, lat]
 }
 
-function clearAllPoints() {
+function clearAll() {
   markers.forEach(m => map.removeLayer(m));
   markers = [];
   points = [];
+
   if (routeLine) {
     map.removeLayer(routeLine);
     routeLine = null;
   }
 }
 
-/* ================= ROUTE ================= */
 async function calculateRoute() {
-  if (points.length < 2) {
-    alert("Agrega al menos 2 puntos");
-    return;
-  }
+  if (points.length < 2) return;
 
   if (routeLine) map.removeLayer(routeLine);
-
-  const body = {
-    coordinates: points
-  };
 
   const response = await fetch(
     "https://api.openrouteservice.org/v2/directions/foot-walking/geojson",
@@ -91,7 +108,10 @@ async function calculateRoute() {
         "Authorization": ORS_API_KEY,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify({
+        coordinates: points,
+        optimize_waypoints: true
+      })
     }
   );
 
@@ -101,11 +121,12 @@ async function calculateRoute() {
     style: { color: "red", weight: 5 }
   }).addTo(map);
 
-  // ENVIAR RUTA A APP INVENTOR
-  let routeString = "ROUTE:";
+  // Enviar ruta a App Inventor
+  let routeString = "";
   data.features[0].geometry.coordinates.forEach(c => {
     routeString += c[1] + "," + c[0] + "|";
   });
+
   routeString = routeString.slice(0, -1);
 
   if (window.AppInventor) {
@@ -113,23 +134,33 @@ async function calculateRoute() {
   }
 }
 
-/* ================= LOAD SAVED ROUTE ================= */
-function drawRouteFromText(routeText) {
-  clearAllPoints();
+/* =========================
+   DIBUJAR RUTA DESDE TINYDB
+========================= */
+function drawRouteFromText(text) {
+  if (!text || text === "VACIO") return;
 
-  const pts = routeText.replace("ROUTE:", "").split("|");
-  pts.forEach(p => {
-    const s = p.split(",");
-    addPoint(parseFloat(s[0]), parseFloat(s[1]));
+  if (routeLine) map.removeLayer(routeLine);
+
+  const coords = text.split("|").map(p => {
+    const parts = p.split(",");
+    return [parseFloat(parts[0]), parseFloat(parts[1])];
   });
 
-  calculateRoute();
+  routeLine = L.polyline(coords, {
+    color: "red",
+    weight: 5
+  }).addTo(map);
+
+  map.fitBounds(routeLine.getBounds());
 }
 
-/* ================= EXPOSE ================= */
+/* =========================
+   EXPOSE TO APP INVENTOR
+========================= */
 window.calculateRoute = calculateRoute;
-window.clearAllPoints = clearAllPoints;
 window.drawRouteFromText = drawRouteFromText;
+window.clearAll = clearAll;
 
 </script>
 </body>
