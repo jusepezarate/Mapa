@@ -1,9 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8" />
-  <title>Tourist Route Planner</title>
-
+  <meta charset="utf-8">
+  <title>Mapa Rutas</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <!-- Leaflet -->
@@ -30,61 +29,52 @@
 
 <script>
 /* =========================
-   CONFIG
-========================= */
-const ORS_API_KEY =
-"eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjZhMTUxMmFkOTcxNjQzYTFhYzg1NDkwODBjYTk5ZmZiIiwiaCI6Im11cm11cjY0In0=";
-
-/* =========================
    MAP INIT
 ========================= */
-const map = L.map('map').setView([-18.4783, -70.3126], 14);
+const map = L.map('map').setView([-18.4783, -70.3126], 14); // Arica
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 
 /* =========================
-   STATE
+   GLOBAL STATE
 ========================= */
 let points = [];
 let markers = [];
 let routeLine = null;
+let userMarker = null;
 
 /* =========================
-   GEOLOCATION (CURRENT POSITION)
+   GEOLOCATION
 ========================= */
-if ("geolocation" in navigator) {
-  navigator.geolocation.getCurrentPosition(
-    position => {
-      const lat = position.coords.latitude;
-      const lon = position.coords.longitude;
+if (navigator.geolocation) {
+  navigator.geolocation.getCurrentPosition(pos => {
+    const lat = pos.coords.latitude;
+    const lon = pos.coords.longitude;
 
-      L.circleMarker([lat, lon], {
-        radius: 7,
-        color: "blue",
-        fillColor: "blue",
-        fillOpacity: 1
-      }).addTo(map);
+    map.setView([lat, lon], 15);
 
-      map.setView([lat, lon], 15);
-    },
-    error => {
-      console.warn("Geolocation error:", error.message);
-    },
-    {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 0
-    }
-  );
+    userMarker = L.circleMarker([lat, lon], {
+      radius: 7,
+      color: 'blue',
+      fillColor: 'blue',
+      fillOpacity: 1
+    }).addTo(map);
+  });
 }
 
 /* =========================
    MAP CLICK → ADD POINT
 ========================= */
-map.on('click', e => {
+map.on('click', function(e) {
   addPoint(e.latlng.lat, e.latlng.lng);
+
+  if (window.AppInventor) {
+    window.AppInventor.setWebViewString(
+      "POINT:" + e.latlng.lat + "," + e.latlng.lng
+    );
+  }
 });
 
 /* =========================
@@ -93,22 +83,13 @@ map.on('click', e => {
 function addPoint(lat, lon) {
   const marker = L.marker([lat, lon]).addTo(map);
   markers.push(marker);
-  points.push([lon, lat]); // ORS usa [lon, lat]
+  points.push([lon, lat]);
 }
 
 function clearLastPoint() {
   if (markers.length > 0) {
     map.removeLayer(markers.pop());
     points.pop();
-
-    if (routeLine) {
-      map.removeLayer(routeLine);
-      routeLine = null;
-    }
-
-    if (points.length >= 2) {
-      calculateRoute();
-    }
   }
 }
 
@@ -123,7 +104,10 @@ function clearAllPoints() {
   }
 }
 
-async function calculateRoute() {
+/* =========================
+   CALCULATE ROUTE (SIN API)
+========================= */
+function calculateRoute() {
   if (points.length < 2) {
     alert("Agrega al menos 2 puntos");
     return;
@@ -133,49 +117,49 @@ async function calculateRoute() {
     map.removeLayer(routeLine);
   }
 
-  const body = {
-    coordinates: points
-  };
+  const latlngs = points.map(p => [p[1], p[0]]);
 
-  try {
-    const response = await fetch(
-      "https://api.openrouteservice.org/v2/directions/foot-walking/geojson",
-      {
-        method: "POST",
-        headers: {
-          "Authorization": "Bearer " + ORS_API_KEY,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(body)
-      }
-    );
+  routeLine = L.polyline(latlngs, {
+    color: 'red',
+    weight: 5
+  }).addTo(map);
 
-    if (!response.ok) {
-      const err = await response.text();
-      alert("ERROR ORS " + response.status + ":\n" + err);
-      return;
-    }
+  let routeString = "ROUTE:";
+  latlngs.forEach(p => {
+    routeString += p[0] + "," + p[1] + "|";
+  });
+  routeString = routeString.slice(0, -1);
 
-    const data = await response.json();
-
-    routeLine = L.geoJSON(data, {
-      style: {
-        color: "red",
-        weight: 5
-      }
-    }).addTo(map);
-
-  } catch (e) {
-    alert("Error de red:\n" + e.message);
+  if (window.AppInventor) {
+    window.AppInventor.setWebViewString(routeString);
   }
 }
 
 /* =========================
-   EXPOSE TO APP INVENTOR
+   LOAD ROUTE FROM APP INVENTOR
+========================= */
+function drawRouteFromText(routeText) {
+  clearAllPoints();
+
+  const data = routeText.replace("ROUTE:", "").split("|");
+
+  data.forEach(p => {
+    const parts = p.split(",");
+    const lat = parseFloat(parts[0]);
+    const lon = parseFloat(parts[1]);
+    addPoint(lat, lon);
+  });
+
+  calculateRoute();
+}
+
+/* =========================
+   EXPOSE FUNCTIONS
 ========================= */
 window.calculateRoute = calculateRoute;
 window.clearLastPoint = clearLastPoint;
 window.clearAllPoints = clearAllPoints;
+window.drawRouteFromText = drawRouteFromText;
 
 </script>
 </body>
