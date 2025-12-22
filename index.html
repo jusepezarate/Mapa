@@ -62,7 +62,8 @@ map.on('click', e => {
    FUNCTIONS
 ========================= */
 function addPoint(lat, lon) {
-  markers.push(L.marker([lat, lon]).addTo(map));
+  const marker = L.marker([lat, lon]).addTo(map);
+  markers.push(marker);
   points.push([lon, lat]); // ORS usa [lon, lat]
 }
 
@@ -104,8 +105,7 @@ async function calculateRoute() {
   }
 
   const body = {
-    coordinates: points,
-    optimize_waypoints: true
+    coordinates: points
   };
 
   try {
@@ -142,7 +142,7 @@ async function calculateRoute() {
 }
 
 /* =========================
-   EXPOSE
+   EXPOSE TO APP INVENTOR
 ========================= */
 window.calculateRoute = calculateRoute;
 window.clearLastPoint = clearLastPoint;
